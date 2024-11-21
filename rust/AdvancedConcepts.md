@@ -1,6 +1,7 @@
 # Types
 ## Generics
 
+# Bitwise operators
 
 # Option & Result
 

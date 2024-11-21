@@ -174,13 +174,15 @@ The unsigned integers are: `u8`, `u16`, `u32`, `u64`, `u128` and `usize` .
 ```
 let a = 1000;
 
-let b: i32 = 1000;
+let b: u32 = 1000;
 
-let c: u8 = 1000; // this will error out on compile
+let c = 1000u32; // type at the end
+
+let d: u8 = 1000; // this will error out on compile
 
 // use underscores for readability. Compiler will ignore underscores
 
-let d: u64 = 1_000_000_000_000 
+let e: u64 = 1_000_000_000_000;
 
 ```
 
@@ -199,11 +201,15 @@ The signed integers are: `i8` , `i16` , `i32` , `i64` , `i128` , and `isize`.
 
 
 ```
-let x = -1000;
+let a = -1000;
 
-let y: i32 = -1000;
+let b: i32 = -1000;
 
-let z: i8 = -1000; // this will error out on compile
+let c = -1000i32;
+
+let d: i8 = -1000; // this will error out on compile
+
+let e: isize = 1__000__000__000__000;
 ```
 
 You can get the min and max of a given size by usig the `MIN` and `MAX` method, eg:
@@ -281,12 +287,6 @@ let x = true;
 let y: bool = false;
 
 ```
- 
-
-
-
-
-
 
 
 ### Compound types
@@ -294,8 +294,9 @@ let y: bool = false;
 Rust arrays are a fixed-size list of elements of the same type. By default, arrays are immutable
 
 ```
-    let x = [1, 2, 3];
-    let mut y = [1, 2, 3];
+    let x: [i32; 3] = [1, 2, 3];
+    let y = [8, 9, 10];
+    let mut z = ['😀', '😄', '😅'];
 ```
 
 Get the number of elements in an array with the `.len()` method:
@@ -473,6 +474,14 @@ println!("{}, {} and {}", "x", "y", "z");
 
 // Repetition in macros
 let numbers = vec![1; 5];  // Creates [1, 1, 1, 1, 1]
+```
+
+#### Ternary operator
+Rust does not have a shortform ternary operator. Instead use `let result = if condition { value1 } else { value2 };`
+
+```
+let number = 5;
+let message = if number > 0 { "positive" } else { "negative" };
 ```
 
 ### Slice
@@ -691,33 +700,160 @@ fn main() {
 
 ```
 
+# Console and formatting
 
 
 # Arithmatics / Numeric operations
-+-/x,mod, byte, octal, hex, dec, etc
+## Arithmatics
 
-equality, operators
+```
+let x: i32 = 100;
+let y: i32 = 3;
 
-https://doc.rust-lang.org/book/ch03-02-data-types.html#numeric-operations
+// Addition
+let a = x + y;
 
-https://doc.rust-lang.org/book/appendix-02-operators.html
+// Subtraction
+let b = y - x;
+
+// Multiplication
+let c = x * y;
+
+// Division
+let d = x/y;
+
+// Remainder / Modulo
+let e = x%y;
+
+```
+
+Additionally, you can do this:
+```
+let mut x = 5;
+
+x += 3;  // x = x + 3
+x -= 2;  // x = x - 2
+x *= 4;  // x = x * 4
+x /= 2;  // x = x / 2
+x %= 3;  // x = x % 3
+
+```
+
+## Scientific notation
+
+Rust supports scientific E-notation, e.g. `2e5`, `-8.8e-9`. The associated type is `f64`.
+
+## Binary, Hexadecimal, Octal, Decimal
+Unsigned integers can be represented in binary, hexadecimal and octal using `0b`, `0x` and `0o` respectively.
+
+```
+// Binary (base 2)
+let binary = 0b1010; // 10 in decimal
+let large_binary = 0b1111_0000; // Use _ for readability
+
+// Hexadecimal (base 16)
+let hex = 0xFF; // 255 in decimal
+let large_hex = 0xDEAD_BEEF;
+
+// Octal (base 8) 
+let octal = 0o77; // 63 in decimal
+let large_octal = 0o755; // Common file permissions
+
+// Decimal (base 10)
+let decimal = 42;
+let large_decimal = 1_000_000; // Use _ for readability
+
+// Printing in different formats
+println!("Binary: {:b}", binary);
+println!("Hex: {:x}", hex);
+println!("Octal: {:o}", octal);
+println!("Decimal: {}", decimal);
+```
 
 
-#
+## Equality
+Rust has the usual equality operators, `==`, `!=`, `>`, `>=`, `<`, `<=`. You can only compare elements of the same type.
+
+```
+// Comparison operators
+let x = 5;
+let y = 10;
+
+assert!(x == y-x); // Equal to
+assert!(x != y);   // Not equal to
+assert!(x < y);   // Less than
+assert!(y > x);   // Greater than
+assert!(x <= y);  // Less than or equal
+assert!(y >= x);  // Greater than or equal
+```
+
+## Boolean logic
+The boolean logic of *and* (`&&`), *or* (`||`) and *not* (`!`) are can be used in Rust:
+
+```
+// Checking age and membership requirements
+let age = 25;
+let is_member = true;
+if age >= 18 && is_member {
+   println!("Access granted to members-only area");
+}
+
+// Validating input
+let input = "hello";
+if input.is_empty() || input.len() > 100 {
+   println!("Input must be between 1-100 characters");
+}
+
+// Toggling flags
+let is_visible = true;
+let hidden = !is_visible; // hidden will be false
+```
 
 
-
-# Conditionals
-
-# Loops
+# Loops & Conditionals
 
 # Destructuring
+
+Destructure elements in a variable:
+
+```
+// Structs
+struct Point { x: i32, y: i32 }
+let p = Point { x: 0, y: 7 };
+let Point { x, y } = p;
+
+// Tuples
+let tuple = (1, "hello", true);
+let (num, text, flag) = tuple;
+
+// Arrays/Slices
+let arr = [1, 2, 3];
+let [a, b, c] = arr;
+
+// Enums
+enum Message {
+   Quit,
+   Move { x: i32, y: i32 },
+   Write(String),
+}
+let msg = Message::Move { x: 3, y: 4 };
+if let Message::Move { x, y } = msg { }
+
+// References
+let reference = &(1, 2);
+let &(a, b) = reference;
+
+// Pattern matching in function parameters
+fn print_coordinates(&(x, y): &(i32, i32)) {
+   println!("({}, {})", x, y);
+}
+```
 
 # Option and result
 
 # Casting, literals, operators
 
-# Console and formatting
+
 
 # References, mutability, ownership, copy, shadowing and borrowing
 
