@@ -51,15 +51,15 @@ func rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 func requireHTTPS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check if request is HTTPS (works with reverse proxies too)
-		if r.Header.Get("X-Forwarded-Proto") != "https" && r.TLS == nil {
-			httpsURL := "https://" + r.Host + r.RequestURI
-			logger.Warn("HTTP request redirected to HTTPS",
-				"original_url", r.URL.String(),
-				"redirect_url", httpsURL,
-				"client_ip", getClientIP(r))
-			http.Redirect(w, r, httpsURL, http.StatusPermanentRedirect)
-			return
-		}
+		// if r.Header.Get("X-Forwarded-Proto") != "https" && r.TLS == nil {
+		// 	httpsURL := "https://" + r.Host + r.RequestURI
+		// 	logger.Warn("HTTP request redirected to HTTPS",
+		// 		"original_url", r.URL.String(),
+		// 		"redirect_url", httpsURL,
+		// 		"client_ip", getClientIP(r))
+		// 	http.Redirect(w, r, httpsURL, http.StatusPermanentRedirect)
+		// 	return
+		// }
 		next.ServeHTTP(w, r)
 	})
 }
@@ -131,7 +131,8 @@ func register(w http.ResponseWriter, r *http.Request) {
 		"username", username,
 		"client_ip", clientIP)
 
-	fmt.Fprint(w, "Registration successful")
+	// Redirect to login page after successful registration
+	http.Redirect(w, r, "/login-page", http.StatusSeeOther)
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
@@ -206,15 +207,20 @@ func login(w http.ResponseWriter, r *http.Request) {
 		"username", username,
 		"client_ip", clientIP)
 
-	fmt.Fprintln(w, "Login successful")
+	// Redirect to protected page after successful login
+	http.Redirect(w, r, "/protected-page", http.StatusSeeOther)
 }
 
 func logout(w http.ResponseWriter, r *http.Request) {
 	clientIP := getClientIP(r)
 
-	if err := Authorise(r); err != nil {
-		logSecurityEvent("unauthorized_logout_attempt", "", r)
-		http.Error(w, "Unauthorised", http.StatusUnauthorized)
+	// Validate CSRF token from form
+	formCSRF := r.FormValue("csrf_token")
+	sessionCSRF := getUserCSRFToken(r)
+
+	if formCSRF == "" || sessionCSRF == "" || formCSRF != sessionCSRF {
+		logSecurityEvent("invalid_csrf_logout", "", r)
+		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 		return
 	}
 
@@ -239,8 +245,13 @@ func logout(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 	})
 
-	username := r.FormValue("username")
-	username = sanitizeUsername(username)
+	// Get username from session instead of form
+	username := getUsernameFromSession(r)
+	if username == "" {
+		logSecurityEvent("logout_session_error", "", r)
+		http.Error(w, "Session error", http.StatusInternalServerError)
+		return
+	}
 
 	// Clear tokens from storage
 	usersMutex.Lock()
@@ -255,7 +266,8 @@ func logout(w http.ResponseWriter, r *http.Request) {
 		"username", username,
 		"client_ip", clientIP)
 
-	fmt.Fprintln(w, "Logged out successfully")
+	// Redirect to homepage after successful logout
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func protected(w http.ResponseWriter, r *http.Request) {
@@ -283,11 +295,152 @@ func protected(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "CSRF validated. Welcome, %s", username)
 }
 
+// Homepage handler that serves HTML from webpages.go
+func homepageHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	fmt.Fprint(w, homepage())
+}
+
+// Login page handler
+func loginPageHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// If user is already authenticated, redirect to protected page
+	if isAuthenticated(r) {
+		http.Redirect(w, r, "/protected-page", http.StatusSeeOther)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	fmt.Fprint(w, loginPage())
+}
+
+// Register page handler
+func registerPageHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// If user is already authenticated, redirect to protected page
+	if isAuthenticated(r) {
+		http.Redirect(w, r, "/protected-page", http.StatusSeeOther)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	fmt.Fprint(w, registerPage())
+}
+
+// Check if user has a valid session (for page viewing, no CSRF required)
+func isAuthenticated(r *http.Request) bool {
+	// Get session token from cookie
+	sessionCookie, err := r.Cookie("session_token")
+	if err != nil || sessionCookie.Value == "" {
+		return false
+	}
+
+	// Check if any user has this session token
+	usersMutex.RLock()
+	defer usersMutex.RUnlock()
+
+	for _, user := range users {
+		if user.SessionToken == sessionCookie.Value && user.SessionToken != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Get CSRF token for authenticated user
+func getUserCSRFToken(r *http.Request) string {
+	// Get session token from cookie
+	sessionCookie, err := r.Cookie("session_token")
+	if err != nil || sessionCookie.Value == "" {
+		return ""
+	}
+
+	// Find user with this session token
+	usersMutex.RLock()
+	defer usersMutex.RUnlock()
+
+	for _, user := range users {
+		if user.SessionToken == sessionCookie.Value && user.SessionToken != "" {
+			return user.CSRFToken
+		}
+	}
+
+	return ""
+}
+
+// Get username from session token
+func getUsernameFromSession(r *http.Request) string {
+	// Get session token from cookie
+	sessionCookie, err := r.Cookie("session_token")
+	if err != nil || sessionCookie.Value == "" {
+		return ""
+	}
+
+	// Find user with this session token
+	usersMutex.RLock()
+	defer usersMutex.RUnlock()
+
+	for username, user := range users {
+		if user.SessionToken == sessionCookie.Value && user.SessionToken != "" {
+			return username
+		}
+	}
+
+	return ""
+}
+
+// Protected page handler
+func protectedPageHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Check if user is authenticated
+	if !isAuthenticated(r) {
+		// Redirect to login page if not authenticated
+		http.Redirect(w, r, "/login-page", http.StatusSeeOther)
+		return
+	}
+
+	// Get CSRF token for the logged-in user
+	csrfToken := getUserCSRFToken(r)
+	if csrfToken == "" {
+		http.Error(w, "Session error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	fmt.Fprint(w, protectedPage(csrfToken))
+}
+
 func main() {
 	logger.Info("Starting server on port 8101")
 
 	// Create a new ServeMux for better control over routing
 	mux := http.NewServeMux()
+
+	// Homepage route
+	mux.HandleFunc("/", homepageHandler)
+
+	// Page routes (GET)
+	mux.HandleFunc("/login-page", loginPageHandler)
+	mux.HandleFunc("/register-page", registerPageHandler)
+	mux.HandleFunc("/protected-page", protectedPageHandler)
 
 	// Apply rate limiting to all endpoints
 	mux.HandleFunc("/register", rateLimitMiddleware(register))
