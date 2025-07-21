@@ -50,7 +50,7 @@ func rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 // HTTPS enforcement middleware
 func requireHTTPS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		Check if request is HTTPS (works with reverse proxies too)
+		// Check if request is HTTPS (works with reverse proxies too)
 		if r.Header.Get("X-Forwarded-Proto") != "https" && r.TLS == nil {
 			httpsURL := "https://" + r.Host + r.RequestURI
 			logger.Warn("HTTP request redirected to HTTPS",
@@ -70,14 +70,14 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 		// Content Security Policy (CSP) - strict policy for this app
 		w.Header().Set("Content-Security-Policy",
 			"default-src 'self'; "+
-			"style-src 'unsafe-inline'; "+
-			"script-src 'self'; "+
-			"img-src 'self' data:; "+
-			"font-src 'self'; "+
-			"connect-src 'self'; "+
-			"frame-ancestors 'none'; "+
-			"base-uri 'self'; "+
-			"form-action 'self'")
+				"style-src 'unsafe-inline'; "+
+				"script-src 'self'; "+
+				"img-src 'self' data:; "+
+				"font-src 'self'; "+
+				"connect-src 'self'; "+
+				"frame-ancestors 'none'; "+
+				"base-uri 'self'; "+
+				"form-action 'self'")
 
 		// Referrer Policy
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
