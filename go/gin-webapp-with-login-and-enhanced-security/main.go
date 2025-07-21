@@ -449,7 +449,7 @@ func protectedPageHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	logger.Info("Starting server on port 8101")
+	logger.Info("Starting server on port 8080")
 
 	// Create a new ServeMux for better control over routing
 	mux := http.NewServeMux()
@@ -472,14 +472,14 @@ func main() {
 	handler := securityHeadersMiddleware(requireHTTPS(mux))
 
 	server := &http.Server{
-		Addr:         ":8101",
+		Addr:         ":8080",
 		Handler:      handler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
-	logger.Info("Server starting on :8101")
+	logger.Info("Server starting on :8080")
 	if err := server.ListenAndServe(); err != nil {
 		logger.Error("Server failed to start", "error", err.Error())
 	}
