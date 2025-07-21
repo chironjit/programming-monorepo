@@ -50,16 +50,16 @@ func rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 // HTTPS enforcement middleware
 func requireHTTPS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check if request is HTTPS (works with reverse proxies too)
-		// if r.Header.Get("X-Forwarded-Proto") != "https" && r.TLS == nil {
-		// 	httpsURL := "https://" + r.Host + r.RequestURI
-		// 	logger.Warn("HTTP request redirected to HTTPS",
-		// 		"original_url", r.URL.String(),
-		// 		"redirect_url", httpsURL,
-		// 		"client_ip", getClientIP(r))
-		// 	http.Redirect(w, r, httpsURL, http.StatusPermanentRedirect)
-		// 	return
-		// }
+		Check if request is HTTPS (works with reverse proxies too)
+		if r.Header.Get("X-Forwarded-Proto") != "https" && r.TLS == nil {
+			httpsURL := "https://" + r.Host + r.RequestURI
+			logger.Warn("HTTP request redirected to HTTPS",
+				"original_url", r.URL.String(),
+				"redirect_url", httpsURL,
+				"client_ip", getClientIP(r))
+			http.Redirect(w, r, httpsURL, http.StatusPermanentRedirect)
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }
@@ -67,10 +67,30 @@ func requireHTTPS(next http.Handler) http.Handler {
 // Security headers middleware
 func securityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Content Security Policy (CSP) - strict policy for this app
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self'; "+
+			"style-src 'unsafe-inline'; "+
+			"script-src 'self'; "+
+			"img-src 'self' data:; "+
+			"font-src 'self'; "+
+			"connect-src 'self'; "+
+			"frame-ancestors 'none'; "+
+			"base-uri 'self'; "+
+			"form-action 'self'")
+
+		// Referrer Policy
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
+		// Cross Origin Resource Policy
+		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+
+		// Existing security headers
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+
 		next.ServeHTTP(w, r)
 	})
 }
