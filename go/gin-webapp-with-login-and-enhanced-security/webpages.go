@@ -93,10 +93,8 @@ func homepage() string {
 <body>
 	<div class="container">
 		<h1>Welcome</h1>
-		<p>This is the homepage of our application.</p>
-		<a href="/login-page" class="btn">Login</a>
-		<a href="/register-page" class="btn success">Register</a>
-		<a href="/protected-page" class="btn">Protected Page</a>
+		<p>Welcome to our secure web application.</p>
+		<a href="/protected-page" class="btn">Dashboard</a>
 	</div>
 </body>
 </html>`, CSS)
@@ -120,8 +118,8 @@ func loginPage() string {
 			<input type="password" name="password" placeholder="Password" required>
 			<button type="submit" class="btn">Login</button>
 		</form>
-		<a href="/register-page">Don't have an account? Register</a><br><br>
-		<a href="/">Back to Homepage</a>
+		<p><a href="/register">Don't have an account? Sign up</a></p>
+		<a href="/" class="btn">Back to Homepage</a>
 	</div>
 </body>
 </html>`, CSS)
@@ -139,36 +137,38 @@ func registerPage() string {
 </head>
 <body>
 	<div class="container">
-		<h1>Register</h1>
+		<h1>Sign Up</h1>
 		<form class="form" method="POST" action="/register">
 			<input type="text" name="username" placeholder="Username" required>
 			<input type="password" name="password" placeholder="Password" required>
-			<button type="submit" class="btn success">Register</button>
+			<button type="submit" class="btn success">Sign Up</button>
 		</form>
-		<a href="/login-page">Already have an account? Login</a><br><br>
-		<a href="/">Back to Homepage</a>
+		<p><a href="/login">Already have an account? Login</a></p>
+		<a href="/" class="btn">Back to Homepage</a>
 	</div>
 </body>
 </html>`, CSS)
 }
 
-// Protected function
-func protectedPage(csrfToken string) string {
+// Protected function (Dashboard)
+func protectedPage(username string, csrfToken string) string {
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Protected Content</title>
+	<title>Dashboard</title>
 	%s
 </head>
 <body>
 	<div class="container">
-		<h1>Protected Content</h1>
-		<p>This page contains sensitive information that requires authentication.</p>
+		<h1>Dashboard</h1>
+		<p>Welcome, %s! This is your secure dashboard.</p>
 		<div class="info-box">
-			<h3>Confidential Data</h3>
-			<p>User dashboard with personal information and settings.</p>
+			<h3>User Information</h3>
+			<p>Username: %s</p>
+			<p>Access Level: User</p>
+			<p>Last Login: Just now</p>
 		</div>
 		<form method="POST" action="/logout" style="display: inline;">
 			<input type="hidden" name="csrf_token" value="%s">
@@ -177,28 +177,6 @@ func protectedPage(csrfToken string) string {
 		<a href="/" class="btn">Back to Homepage</a>
 	</div>
 </body>
-</html>`, CSS, csrfToken)
+</html>`, CSS, username, username, csrfToken)
 }
 
-// Denied function
-func deniedPage() string {
-	return fmt.Sprintf(`<!DOCTYPE html>
-<html lang="en">
-<head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Access Denied</title>
-	%s
-</head>
-<body>
-	<div class="container">
-		<div class="error-box">
-			<h1>⚠️ Access Denied</h1>
-			<p>You are not authenticated. Please log in to access this page.</p>
-		</div>
-		<a href="/login" class="btn">Go to Login</a>
-		<a href="/" class="btn">Back to Homepage</a>
-	</div>
-</body>
-</html>`, CSS)
-}
