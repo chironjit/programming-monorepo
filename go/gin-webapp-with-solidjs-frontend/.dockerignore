@@ -1,0 +1,11 @@
+node_modules/
+*.log
+.git/
+.DS_Store
+*.md
+.env
+frontend/dist/
+backend/main
+*.tmp
+.vscode/
+.idea/

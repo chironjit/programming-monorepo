@@ -1,0 +1,23 @@
+# Backend
+backend/*.exe
+backend/*.exe~
+backend/*.dll
+backend/*.so
+backend/*.dylib
+backend/*.test
+backend/*.out
+backend/go.work
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Built assets
+backend/web/dist/
+
+# Fly.io
+.fly/
+
+# Environment
+.env
+.env.local
