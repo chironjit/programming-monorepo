@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"html"
 )
 
 // CSS constant containing all dark mode styles
@@ -152,6 +153,10 @@ func registerPage() string {
 
 // Protected function (Dashboard)
 func protectedPage(username string, csrfToken string) string {
+	// Escape HTML to prevent XSS attacks
+	escapedUsername := html.EscapeString(username)
+	escapedCSRFToken := html.EscapeString(csrfToken)
+	
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -177,6 +182,6 @@ func protectedPage(username string, csrfToken string) string {
 		<a href="/" class="btn">Back to Homepage</a>
 	</div>
 </body>
-</html>`, CSS, username, username, csrfToken)
+</html>`, CSS, escapedUsername, escapedUsername, escapedCSRFToken)
 }
 

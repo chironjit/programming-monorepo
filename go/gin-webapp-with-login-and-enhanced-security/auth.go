@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/http"
+	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -42,13 +44,71 @@ func checkPassword(hash, password string) bool {
 	return err == nil
 }
 
+// Input validation functions
+func validateUsername(username string) error {
+	username = strings.TrimSpace(username)
+	
+	if len(username) < 3 {
+		return errors.New("username must be at least 3 characters long")
+	}
+	
+	if len(username) > 50 {
+		return errors.New("username must be no more than 50 characters long")
+	}
+	
+	// Allow only alphanumeric characters, underscores, and hyphens
+	validUsername := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	if !validUsername.MatchString(username) {
+		return errors.New("username can only contain letters, numbers, underscores, and hyphens")
+	}
+	
+	return nil
+}
+
+func validatePassword(password string) error {
+	if len(password) < 8 {
+		return errors.New("password must be at least 8 characters long")
+	}
+	
+	if len(password) > 128 {
+		return errors.New("password must be no more than 128 characters long")
+	}
+	
+	// Check for at least one uppercase letter
+	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(password)
+	// Check for at least one lowercase letter
+	hasLower := regexp.MustCompile(`[a-z]`).MatchString(password)
+	// Check for at least one digit
+	hasNumber := regexp.MustCompile(`[0-9]`).MatchString(password)
+	
+	if !hasUpper || !hasLower || !hasNumber {
+		return errors.New("password must contain at least one uppercase letter, one lowercase letter, and one number")
+	}
+	
+	return nil
+}
+
 func registerUser(c *gin.Context) {
-	username := c.PostForm("username")
+	username := strings.TrimSpace(c.PostForm("username"))
 	password := c.PostForm("password")
 
 	if username == "" || password == "" {
 		logger.Warn("Registration failed - missing credentials", "client_ip", c.ClientIP())
-		c.Redirect(http.StatusSeeOther, "/register")
+		c.String(http.StatusBadRequest, "Username and password are required")
+		return
+	}
+
+	// Validate username
+	if err := validateUsername(username); err != nil {
+		logger.Warn("Registration failed - invalid username", "username", username, "error", err.Error(), "client_ip", c.ClientIP())
+		c.String(http.StatusBadRequest, "Invalid username: "+err.Error())
+		return
+	}
+
+	// Validate password
+	if err := validatePassword(password); err != nil {
+		logger.Warn("Registration failed - invalid password", "username", username, "error", err.Error(), "client_ip", c.ClientIP())
+		c.String(http.StatusBadRequest, "Invalid password: "+err.Error())
 		return
 	}
 
@@ -82,20 +142,27 @@ func registerUser(c *gin.Context) {
 	users[username].SessionToken = sessionToken
 	users[username].CSRFToken = csrfToken
 
-	// Set session cookie
-	c.SetCookie("session_token", sessionToken, 3600*24, "/", "", false, true)
-	c.SetCookie("csrf_token", csrfToken, 3600*24, "/", "", false, false)
+	// Set session cookie with secure flag for HTTPS
+	c.SetCookie("session_token", sessionToken, 3600*24, "/", "", true, true)
+	c.SetCookie("csrf_token", csrfToken, 3600*24, "/", "", true, false)
 
 	c.Redirect(http.StatusSeeOther, "/protected-page")
 }
 
 func loginUser(c *gin.Context) {
-	username := c.PostForm("username")
+	username := strings.TrimSpace(c.PostForm("username"))
 	password := c.PostForm("password")
 
 	if username == "" || password == "" {
 		logger.Warn("Login failed - missing credentials", "client_ip", c.ClientIP())
-		c.Redirect(http.StatusSeeOther, "/login")
+		c.String(http.StatusBadRequest, "Username and password are required")
+		return
+	}
+
+	// Basic validation for login (less strict than registration)
+	if len(username) > 50 || len(password) > 128 {
+		logger.Warn("Login failed - input too long", "username", username, "client_ip", c.ClientIP())
+		c.String(http.StatusBadRequest, "Invalid input length")
 		return
 	}
 
@@ -117,9 +184,9 @@ func loginUser(c *gin.Context) {
 	user.CSRFToken = csrfToken
 	usersMutex.Unlock()
 
-	// Set session cookies
-	c.SetCookie("session_token", sessionToken, 3600*24, "/", "", false, true)
-	c.SetCookie("csrf_token", csrfToken, 3600*24, "/", "", false, false)
+	// Set session cookies with secure flag for HTTPS
+	c.SetCookie("session_token", sessionToken, 3600*24, "/", "", true, true)
+	c.SetCookie("csrf_token", csrfToken, 3600*24, "/", "", true, false)
 
 	logger.Info("User logged in successfully", "username", username, "client_ip", c.ClientIP())
 	c.Redirect(http.StatusSeeOther, "/protected-page")
@@ -132,22 +199,49 @@ func logoutUser(c *gin.Context) {
 		return
 	}
 
-	// Find user and clear session
+	// Validate CSRF token
+	submittedCSRFToken := c.PostForm("csrf_token")
+	if submittedCSRFToken == "" {
+		logger.Warn("Logout failed - missing CSRF token", "client_ip", c.ClientIP())
+		c.String(http.StatusBadRequest, "Missing CSRF token")
+		return
+	}
+
+	// Find user and validate CSRF token
 	usersMutex.Lock()
 	var username string
+	var currentUser *User
 	for _, user := range users {
 		if user.SessionToken == sessionToken {
+			currentUser = user
 			username = user.Username
-			user.SessionToken = ""
-			user.CSRFToken = ""
 			break
 		}
 	}
+	
+	if currentUser == nil {
+		usersMutex.Unlock()
+		logger.Warn("Logout failed - invalid session", "client_ip", c.ClientIP())
+		c.Redirect(http.StatusSeeOther, "/")
+		return
+	}
+	
+	// Validate CSRF token matches user's stored token
+	if currentUser.CSRFToken != submittedCSRFToken {
+		usersMutex.Unlock()
+		logger.Warn("Logout failed - invalid CSRF token", "username", username, "client_ip", c.ClientIP())
+		c.String(http.StatusForbidden, "Invalid CSRF token")
+		return
+	}
+	
+	// Clear session and CSRF token
+	currentUser.SessionToken = ""
+	currentUser.CSRFToken = ""
 	usersMutex.Unlock()
 
-	// Clear cookies
-	c.SetCookie("session_token", "", -1, "/", "", false, true)
-	c.SetCookie("csrf_token", "", -1, "/", "", false, false)
+	// Clear cookies with secure flag for HTTPS
+	c.SetCookie("session_token", "", -1, "/", "", true, true)
+	c.SetCookie("csrf_token", "", -1, "/", "", true, false)
 
 	logger.Info("User logged out", "username", username, "client_ip", c.ClientIP())
 	c.Redirect(http.StatusSeeOther, "/")
