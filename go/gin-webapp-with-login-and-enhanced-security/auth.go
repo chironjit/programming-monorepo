@@ -47,6 +47,7 @@ func registerUser(c *gin.Context) {
 	password := c.PostForm("password")
 
 	if username == "" || password == "" {
+		logger.Warn("Registration failed - missing credentials", "client_ip", c.ClientIP())
 		c.Redirect(http.StatusSeeOther, "/register")
 		return
 	}
@@ -55,13 +56,14 @@ func registerUser(c *gin.Context) {
 	defer usersMutex.Unlock()
 
 	if _, exists := users[username]; exists {
+		logger.Warn("Registration failed - user already exists", "username", username, "client_ip", c.ClientIP())
 		c.Redirect(http.StatusSeeOther, "/register")
 		return
 	}
 
 	hashedPassword, err := hashPassword(password)
 	if err != nil {
-		logger.Error("Password hashing failed", "error", err.Error())
+		logger.Error("Registration failed - password hashing error", "username", username, "client_ip", c.ClientIP(), "error", err.Error())
 		c.Redirect(http.StatusSeeOther, "/register")
 		return
 	}
@@ -92,6 +94,7 @@ func loginUser(c *gin.Context) {
 	password := c.PostForm("password")
 
 	if username == "" || password == "" {
+		logger.Warn("Login failed - missing credentials", "client_ip", c.ClientIP())
 		c.Redirect(http.StatusSeeOther, "/login")
 		return
 	}
@@ -131,8 +134,10 @@ func logoutUser(c *gin.Context) {
 
 	// Find user and clear session
 	usersMutex.Lock()
+	var username string
 	for _, user := range users {
 		if user.SessionToken == sessionToken {
+			username = user.Username
 			user.SessionToken = ""
 			user.CSRFToken = ""
 			break
@@ -144,7 +149,7 @@ func logoutUser(c *gin.Context) {
 	c.SetCookie("session_token", "", -1, "/", "", false, true)
 	c.SetCookie("csrf_token", "", -1, "/", "", false, false)
 
-	logger.Info("User logged out", "client_ip", c.ClientIP())
+	logger.Info("User logged out", "username", username, "client_ip", c.ClientIP())
 	c.Redirect(http.StatusSeeOther, "/")
 }
 

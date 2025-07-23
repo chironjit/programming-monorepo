@@ -53,6 +53,19 @@ func main() {
 
 	r := gin.Default()
 
+	// Request logging middleware
+	r.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+		logger.Info("Request",
+			"method", param.Method,
+			"path", param.Path,
+			"status", param.StatusCode,
+			"client_ip", param.ClientIP,
+			"user_agent", param.Request.UserAgent(),
+			"latency", param.Latency,
+		)
+		return ""
+	}))
+
 	// Apply security middleware
 	r.Use(securityHeadersMiddleware())
 
